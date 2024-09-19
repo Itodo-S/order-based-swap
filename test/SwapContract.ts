@@ -72,57 +72,67 @@ describe("TokenSwap", function () {
         });
 
 
-        // it("should fail if deposit or requested amount is zero", async function () {
-        //     await expect(tokenSwap.connect(depositor).createOrder(syeToken.address, 0, casToken.address, ethers.utils.parseEther("20")))
-        //         .to.be.revertedWith("Deposit amount must be greater than 0");
+        it("should fail if deposit or requested amount is zero", async function () {
+            await expect(tokenSwap.connect(depositor).createOrder(syeToken, 0, casToken, ethers.parseEther("20")))
+                .to.be.revertedWith("Deposit amount must be greater than 0");
 
-        //     await expect(tokenSwap.connect(depositor).createOrder(syeToken.address, ethers.utils.parseEther("100"), casToken.address, 0))
-        //         .to.be.revertedWith("Requested amount must be greater than 0");
-        // });
+            await expect(tokenSwap.connect(depositor).createOrder(syeToken, ethers.parseEther("100"), casToken, 0))
+                .to.be.revertedWith("Requested amount must be greater than 0");
+        });
     });
 
-    // describe("Fulfill Order", function () {
-    //     beforeEach(async function () {
-    //         const amountSYE = ethers.utils.parseEther("100");
-    //         const amountCas = ethers.utils.parseEther("20");
+    describe("Fulfill Order", function () {
+        beforeEach(async function () {
+            const amountSYE = ethers.parseEther("100");
+            const amountCas = ethers.parseEther("20");
+    
+            // Approve SYE transfer to the contract and create the order
+            await syeToken.transfer(depositor, ethers.parseEther("1000"));
+            await syeToken.connect(depositor).approve(tokenSwap, amountSYE);
+            await tokenSwap.connect(depositor).createOrder(syeToken, amountSYE, casToken, amountCas);
+    
+            // Transfer CasToken to the fulfiller so they can fulfill the order
+            await casToken.transfer(fulfiller.address, ethers.parseEther("100"));
+        });
+    
+        it("should allow a user to fulfill an order", async function () {
+            const amountCas = ethers.parseEther("20");
+    
+            // Approve CasToken transfer from the fulfiller to the depositor
+            await casToken.connect(fulfiller).approve(tokenSwap, amountCas);
+    
+            await expect(tokenSwap.connect(fulfiller).fulfillOrder(0))
+                .to.emit(tokenSwap, "OrderFulfilled")
+                .withArgs(0, fulfiller.address);
+    
+            const order = await tokenSwap.orders(0);
+            expect(order.fulfilled).to.be.true;
+    
+            // Check the balances after fulfillment
+            expect(await syeToken.balanceOf(fulfiller.address)).to.equal(ethers.parseEther("100"));
+            expect(await casToken.balanceOf(depositor.address)).to.equal(ethers.parseEther("20"));
+        });
+    
 
-    //         // Approve SYE transfer to the contract and create the order
-    //         await syeToken.connect(depositor).approve(tokenSwap.address, amountSYE);
-    //         await tokenSwap.connect(depositor).createOrder(syeToken.address, amountSYE, casToken.address, amountCas);
-    //     });
+        it("should not allow fulfilling an already fulfilled order", async function () {
+            const amountCas = ethers.parseEther("20");
+            await casToken.connect(fulfiller).approve(tokenSwap, amountCas);
+            await tokenSwap.connect(fulfiller).fulfillOrder(0);
 
-    //     it("should allow a user to fulfill an order", async function () {
-    //         const amountCas = ethers.utils.parseEther("20");
+            await expect(tokenSwap.connect(fulfiller).fulfillOrder(0))
+                .to.be.revertedWith("Order already fulfilled");
+        });
 
-    //         // Approve CasToken transfer from the fulfiller to the depositor
-    //         await casToken.connect(fulfiller).approve(tokenSwap.address, amountCas);
+        it("should not allow fulfilling a canceled order", async function () {
+            const amountCas = ethers.parseEther("20");
+            await casToken.connect(fulfiller).approve(tokenSwap, amountCas);
+            
+            await tokenSwap.connect(depositor).cancelOrder(0);
 
-    //         await expect(tokenSwap.connect(fulfiller).fulfillOrder(0))
-    //             .to.emit(tokenSwap, "OrderFulfilled")
-    //             .withArgs(0, fulfiller.address);
-
-    //         const order = await tokenSwap.orders(0);
-    //         expect(order.fulfilled).to.be.true;
-
-    //         // Check the balances after fulfillment
-    //         expect(await syeToken.balanceOf(fulfiller.address)).to.equal(ethers.utils.parseEther("100"));
-    //         expect(await casToken.balanceOf(depositor.address)).to.equal(ethers.utils.parseEther("20"));
-    //     });
-
-    //     it("should not allow fulfilling a fulfilled or canceled order", async function () {
-    //         const amountCas = ethers.utils.parseEther("20");
-    //         await casToken.connect(fulfiller).approve(tokenSwap.address, amountCas);
-    //         await tokenSwap.connect(fulfiller).fulfillOrder(0);
-
-    //         await expect(tokenSwap.connect(fulfiller).fulfillOrder(0))
-    //             .to.be.revertedWith("Order already fulfilled");
-
-    //         await tokenSwap.connect(depositor).cancelOrder(0);
-
-    //         await expect(tokenSwap.connect(fulfiller).fulfillOrder(0))
-    //             .to.be.revertedWith("Order is canceled");
-    //     });
-    // });
+            await expect(tokenSwap.connect(fulfiller).fulfillOrder(0))
+                .to.be.revertedWith("Order is canceled");
+        });
+    });
 
     // describe("Cancel Order", function () {
     //     beforeEach(async function () {
