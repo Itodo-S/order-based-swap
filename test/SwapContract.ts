@@ -85,34 +85,34 @@ describe("TokenSwap", function () {
         beforeEach(async function () {
             const amountSYE = ethers.parseEther("100");
             const amountCas = ethers.parseEther("20");
-    
+
             // Approve SYE transfer to the contract and create the order
             await syeToken.transfer(depositor, ethers.parseEther("1000"));
             await syeToken.connect(depositor).approve(tokenSwap, amountSYE);
             await tokenSwap.connect(depositor).createOrder(syeToken, amountSYE, casToken, amountCas);
-    
+
             // Transfer CasToken to the fulfiller so they can fulfill the order
             await casToken.transfer(fulfiller.address, ethers.parseEther("100"));
         });
-    
+
         it("should allow a user to fulfill an order", async function () {
             const amountCas = ethers.parseEther("20");
-    
+
             // Approve CasToken transfer from the fulfiller to the depositor
             await casToken.connect(fulfiller).approve(tokenSwap, amountCas);
-    
+
             await expect(tokenSwap.connect(fulfiller).fulfillOrder(0))
                 .to.emit(tokenSwap, "OrderFulfilled")
                 .withArgs(0, fulfiller.address);
-    
+
             const order = await tokenSwap.orders(0);
             expect(order.fulfilled).to.be.true;
-    
+
             // Check the balances after fulfillment
             expect(await syeToken.balanceOf(fulfiller.address)).to.equal(ethers.parseEther("100"));
             expect(await casToken.balanceOf(depositor.address)).to.equal(ethers.parseEther("20"));
         });
-    
+
 
         it("should not allow fulfilling an already fulfilled order", async function () {
             const amountCas = ethers.parseEther("20");
@@ -126,7 +126,7 @@ describe("TokenSwap", function () {
         it("should not allow fulfilling a canceled order", async function () {
             const amountCas = ethers.parseEther("20");
             await casToken.connect(fulfiller).approve(tokenSwap, amountCas);
-            
+
             await tokenSwap.connect(depositor).cancelOrder(0);
 
             await expect(tokenSwap.connect(fulfiller).fulfillOrder(0))
@@ -134,51 +134,60 @@ describe("TokenSwap", function () {
         });
     });
 
-    // describe("Cancel Order", function () {
-    //     beforeEach(async function () {
-    //         const amountSYE = ethers.utils.parseEther("100");
-    //         const amountCas = ethers.utils.parseEther("20");
+    describe("Cancel Order", function () {
+        beforeEach(async function () {
+            const amountSYE = ethers.parseEther("1000");
+            const amountCas = ethers.parseEther("20");
 
-    //         // Approve SYE transfer to the contract and create the order
-    //         await syeToken.connect(depositor).approve(tokenSwap.address, amountSYE);
-    //         await tokenSwap.connect(depositor).createOrder(syeToken.address, amountSYE, casToken.address, amountCas);
-    //     });
+            // Approve SYE transfer to the contract and create the order
+            await syeToken.transfer(depositor, ethers.parseEther("100000"));
+            await syeToken.connect(depositor).approve(tokenSwap, amountSYE);
+            await tokenSwap.connect(depositor).createOrder(syeToken, amountSYE, casToken, amountCas);
+        });
 
-    //     it("should allow the depositor to cancel the order", async function () {
-    //         await expect(tokenSwap.connect(depositor).cancelOrder(0))
-    //             .to.emit(tokenSwap, "OrderCanceled")
-    //             .withArgs(0, depositor.address);
+        it("should allow the depositor to cancel the order", async function () {
+            await expect(tokenSwap.connect(depositor).cancelOrder(0))
+                .to.emit(tokenSwap, "OrderCanceled")
+                .withArgs(0, depositor.address);
 
-    //         const order = await tokenSwap.orders(0);
-    //         expect(order.canceled).to.be.true;
+            const order = await tokenSwap.orders(0);
+            expect(order.canceled).to.be.true;
 
-    //         // Ensure depositor gets the tokens back
-    //         expect(await syeToken.balanceOf(depositor.address)).to.equal(ethers.utils.parseEther("100000"));
-    //     });
+            // Ensure depositor gets the tokens back
+            expect(await syeToken.balanceOf(depositor.address)).to.equal(ethers.parseEther("100000"));
+        });
 
-    //     it("should not allow others to cancel the order", async function () {
-    //         await expect(tokenSwap.connect(fulfiller).cancelOrder(0))
-    //             .to.be.revertedWith("Only the depositor can cancel the order");
-    //     });
-    // });
+        it("should not allow others to cancel the order", async function () {
+            await expect(tokenSwap.connect(fulfiller).cancelOrder(0))
+                .to.be.revertedWith("Only the depositor can cancel the order");
+        });
+    });
 
-    // describe("Owner Withdraw", function () {
-    //     it("should allow the owner to withdraw tokens from the contract", async function () {
-    //         const amountSYE = ethers.utils.parseEther("100");
+    describe("Owner Withdraw", function () {
+        it("should allow the owner to withdraw tokens from the contract", async function () {
+            const amountSYE = ethers.parseEther("100");
 
-    //         // Transfer some tokens to the contract
-    //         await syeToken.transfer(tokenSwap.address, amountSYE);
+            // Transfer some tokens to the contract
+            await syeToken.transfer(depositor, ethers.parseEther("100000"));
+            await syeToken.connect(depositor).approve(tokenSwap, amountSYE);
 
-    //         // Owner withdraws the tokens
-    //         await tokenSwap.connect(owner).withdraw(syeToken.address, amountSYE);
-    //         expect(await syeToken.balanceOf(owner.address)).to.equal(amountSYE);
-    //     });
+            const amountCas = ethers.parseEther("100");
+            await syeToken.connect(depositor).approve(tokenSwap, amountSYE);
+            await tokenSwap.connect(depositor).createOrder(syeToken, amountSYE, casToken, amountCas);
 
-    //     it("should not allow non-owner to withdraw tokens", async function () {
-    //         await expect(tokenSwap.connect(depositor).withdraw(syeToken.address, ethers.utils.parseEther("100")))
-    //             .to.be.revertedWith("Ownable: caller is not the owner");
-    //     });
-    // });
+            // Owner withdraws the tokens
+            await tokenSwap.connect(owner).withdraw(syeToken, amountSYE);
+            expect(await syeToken.balanceOf(owner.address)).to.equal(amountSYE);
+        });
+
+        it("should not allow non-owner to withdraw tokens", async function () {
+            const [_, nonOwner] = await ethers.getSigners();
+
+            await expect(
+                tokenSwap.connect(nonOwner).withdraw(syeToken, ethers.parseEther("100"))
+            ).to.be.reverted;
+        });
+    });
 });
 
 
