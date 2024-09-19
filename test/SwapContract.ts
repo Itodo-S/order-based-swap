@@ -34,8 +34,8 @@ describe("TokenSwap", function () {
             // Approve SYE transfer to the contract
             // await syeToken.connect(depositor).approve(tokenSwap, amountSYE);
 
-                await syeToken.transfer(depositor, ethers.parseEther("1000"));
-                await syeToken.connect(depositor).approve(tokenSwap, ethers.parseEther("1000"));
+            await syeToken.transfer(depositor, ethers.parseEther("1000"));
+            await syeToken.connect(depositor).approve(tokenSwap, ethers.parseEther("1000"));
 
             // Depositor creates an order
             await expect(
@@ -48,8 +48,6 @@ describe("TokenSwap", function () {
             )
                 .to.emit(tokenSwap, "OrderCreated")
                 .withArgs(0, depositor.address, syeToken, amountSYE, casToken, amountCas);
-
-        
 
             const order = await tokenSwap.orders(0);
             expect(order.depositor).to.equal(depositor.address);
